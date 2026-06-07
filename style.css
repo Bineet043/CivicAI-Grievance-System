@@ -585,6 +585,78 @@ body {
     box-shadow: 0 0 10px var(--primary-glow);
 }
 
+/* GPS address & accuracy enhancements */
+.gps-coord-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex-grow: 1;
+}
+
+.gps-address {
+    font-size: 10px;
+    color: var(--primary);
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 180px;
+    letter-spacing: 0.2px;
+}
+
+.gps-accuracy-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background-color: rgba(255, 255, 255, 0.02);
+    border-radius: var(--radius-sm);
+    font-size: 9px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    letter-spacing: 0.2px;
+}
+
+.accuracy-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: var(--text-secondary);
+    flex-shrink: 0;
+    transition: background-color 0.4s ease;
+}
+
+.accuracy-dot.good   { background-color: var(--color-success); }
+.accuracy-dot.medium { background-color: var(--color-warning); }
+.accuracy-dot.poor   { background-color: var(--color-danger); }
+
+/* Flash animation when coords are updated from the map */
+@keyframes coordFlash {
+    0%   { background-color: rgba(0, 242, 254, 0.18); border-color: var(--primary); }
+    100% { background-color: rgba(255, 255, 255, 0.03); border-color: var(--border-color); }
+}
+
+.gps-selector-box.flash {
+    animation: coordFlash 1.2s ease-out forwards;
+}
+
+/* You-are-here pulsing Leaflet marker */
+.you-are-here-dot {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background-color: var(--primary);
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 0 rgba(0, 242, 254, 0.6);
+    animation: youAreHerePulse 2s infinite;
+}
+
+@keyframes youAreHerePulse {
+    0%   { box-shadow: 0 0 0 0   rgba(0, 242, 254, 0.7); }
+    70%  { box-shadow: 0 0 0 14px rgba(0, 242, 254, 0);   }
+    100% { box-shadow: 0 0 0 0   rgba(0, 242, 254, 0);    }
+}
+
 .form-help {
     font-size: 10px;
     color: var(--text-secondary);

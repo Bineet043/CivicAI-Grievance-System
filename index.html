@@ -159,15 +159,23 @@
 
                                         <div class="mobile-form-group">
                                             <label><i class="fa-solid fa-location-dot"></i> Incident Location</label>
-                                            <div class="gps-selector-box">
-                                                <div class="gps-coordinates">
-                                                    <span id="coord-lat">12.9716</span>, <span id="coord-lng">77.5946</span>
+                                            <div class="gps-selector-box" id="gps-selector-box">
+                                                <div class="gps-coord-stack">
+                                                    <div class="gps-coordinates">
+                                                        <i class="fa-solid fa-crosshairs" style="font-size:9px; color:var(--primary);"></i>
+                                                        <span id="coord-lat">12.97160</span>, <span id="coord-lng">77.59460</span>
+                                                    </div>
+                                                    <div class="gps-address" id="gps-address">Bengaluru, Karnataka, India</div>
                                                 </div>
                                                 <button class="btn-gps" id="btn-mock-gps">
                                                     <i class="fa-solid fa-location-crosshairs"></i> GPS
                                                 </button>
                                             </div>
-                                            <p class="form-help">Tip: You can select a different location on the Admin map, or use default Bengaluru coordinates.</p>
+                                            <div class="gps-accuracy-row" id="gps-accuracy-row">
+                                                <span class="accuracy-dot" id="accuracy-dot"></span>
+                                                <span id="gps-accuracy-text">Source: default coordinates</span>
+                                            </div>
+                                            <p class="form-help">Tap <strong>GPS</strong> for your real location, or click anywhere on the Admin Map to pin a custom spot.</p>
                                         </div>
 
                                         <div class="mobile-form-group">

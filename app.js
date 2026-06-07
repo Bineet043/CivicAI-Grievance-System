@@ -75,6 +75,110 @@ let priorityChartInstance = null;
 // Active ticket in Modal
 let activeTicketId = null;
 
+// Helper to keep Form Coordinates in sync with nextReportCoords state
+function updateFormCoordinates() {
+    const latEl = document.getElementById("coord-lat");
+    const lngEl = document.getElementById("coord-lng");
+    if (latEl && lngEl) {
+        latEl.textContent = nextReportCoords.lat.toFixed(5);
+        lngEl.textContent = nextReportCoords.lng.toFixed(5);
+    }
+}
+
+// Reverse geocode lat/lng → human address via OpenStreetMap Nominatim (no API key needed)
+async function reverseGeocode(lat, lng) {
+    try {
+        const url = `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&addressdetails=1`;
+        const response = await fetch(url, {
+            headers: { 'Accept-Language': 'en', 'User-Agent': 'CivicAI-GrievanceSystem/1.0' }
+        });
+        if (!response.ok) throw new Error('Nominatim request failed');
+        const data = await response.json();
+
+        // Build a short human-readable address
+        const a = data.address || {};
+        const parts = [
+            a.road || a.pedestrian || a.path || a.neighbourhood,
+            a.suburb || a.city_district || a.quarter,
+            a.city || a.town || a.village || a.county,
+            a.state
+        ].filter(Boolean);
+
+        return parts.slice(0, 3).join(', ') || data.display_name.split(',').slice(0, 2).join(',').trim();
+    } catch (e) {
+        return `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+    }
+}
+
+// Set address chip + accuracy indicator
+function setLocationUI(address, accuracyMeters, source) {
+    const addrEl  = document.getElementById('gps-address');
+    const accEl   = document.getElementById('gps-accuracy-text');
+    const dotEl   = document.getElementById('accuracy-dot');
+
+    if (addrEl)  addrEl.textContent  = address;
+    if (accEl) {
+        if (accuracyMeters !== null) {
+            accEl.textContent = `${source} · ±${Math.round(accuracyMeters)} m accuracy`;
+        } else {
+            accEl.textContent = `Source: ${source}`;
+        }
+    }
+    if (dotEl) {
+        dotEl.className = 'accuracy-dot';
+        if (accuracyMeters === null || accuracyMeters > 500) dotEl.classList.add('poor');
+        else if (accuracyMeters > 100)                       dotEl.classList.add('medium');
+        else                                                  dotEl.classList.add('good');
+    }
+}
+
+// Flash the GPS box to confirm a coordinate update
+function flashGpsBox() {
+    const box = document.getElementById('gps-selector-box');
+    if (!box) return;
+    box.classList.remove('flash');
+    void box.offsetWidth; // force reflow
+    box.classList.add('flash');
+    setTimeout(() => box.classList.remove('flash'), 1300);
+}
+
+// Persistent you-are-here marker & accuracy circle on Leaflet map
+let youAreHereMarker = null;
+let accuracyCircle   = null;
+
+function placeYouAreHereMarker(lat, lng, accuracyMeters) {
+    if (!map) return;
+
+    // Remove old markers
+    if (youAreHereMarker) { map.removeLayer(youAreHereMarker); youAreHereMarker = null; }
+    if (accuracyCircle)   { map.removeLayer(accuracyCircle);   accuracyCircle   = null; }
+
+    // Accuracy radius circle (translucent cyan)
+    if (accuracyMeters && accuracyMeters < 5000) {
+        accuracyCircle = L.circle([lat, lng], {
+            radius: accuracyMeters,
+            color: '#00f2fe',
+            fillColor: '#00f2fe',
+            fillOpacity: 0.06,
+            weight: 1.5,
+            dashArray: '4 4'
+        }).addTo(map);
+    }
+
+    // Pulsing you-are-here dot (DivIcon)
+    const icon = L.divIcon({
+        className: '',
+        html: '<div class="you-are-here-dot"></div>',
+        iconSize: [16, 16],
+        iconAnchor: [8, 8]
+    });
+    youAreHereMarker = L.marker([lat, lng], { icon, zIndexOffset: 1000 })
+        .addTo(map)
+        .bindPopup('<strong style="font-family:var(--font-heading);font-size:12px;">📍 Your Location</strong>');
+
+    map.setView([lat, lng], 16, { animate: true });
+}
+
 // 2. INITIALIZATION ON DOM LOAD
 document.addEventListener("DOMContentLoaded", () => {
     initNavigation();
@@ -167,8 +271,7 @@ function initCitizenPortal() {
             document.getElementById("issue-severity-slider").value = defaultSeverity;
             
             // Set current coords in UI
-            document.getElementById("coord-lat").textContent = nextReportCoords.lat.toFixed(5);
-            document.getElementById("coord-lng").textContent = nextReportCoords.lng.toFixed(5);
+            updateFormCoordinates();
             
             // Navigate
             screenHome.classList.remove("active");
@@ -196,8 +299,7 @@ function initCitizenPortal() {
                 document.getElementById("issue-severity-slider").value = 3;
                 
                 // Coordinates
-                document.getElementById("coord-lat").textContent = nextReportCoords.lat.toFixed(5);
-                document.getElementById("coord-lng").textContent = nextReportCoords.lng.toFixed(5);
+                updateFormCoordinates();
                 
                 screenHome.classList.remove("active");
                 screenDetails.classList.add("active");
@@ -215,19 +317,71 @@ function initCitizenPortal() {
         writeLog("[SYSTEM] Returned to home screen. Session cleared.", "system");
     });
     
-    // Mock Slight GPS Jitter
+    // GPS Geolocation Handler with reverse geocoding, accuracy circle, and you-are-here marker
     btnMockGps.addEventListener("click", () => {
-        // Add tiny random offset to Bengaluru center to show GPS search action
-        const jitterLat = 12.9716 + (Math.random() - 0.5) * 0.02;
-        const jitterLng = 77.5946 + (Math.random() - 0.5) * 0.02;
-        
-        nextReportCoords = { lat: jitterLat, lng: jitterLng };
-        
-        document.getElementById("coord-lat").textContent = jitterLat.toFixed(5);
-        document.getElementById("coord-lng").textContent = jitterLng.toFixed(5);
-        
-        writeLog(`[GPS] Location verified via network trilateration: [${jitterLat.toFixed(5)}, ${jitterLng.toFixed(5)}]`, "info");
+        writeLog("[GPS] Requesting high-accuracy fix from device...", "info");
+        btnMockGps.disabled = true;
+        btnMockGps.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Locating...`;
+
+        if (navigator.geolocation) {
+            navigator.geolocation.getCurrentPosition(
+                async (position) => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    const acc = position.coords.accuracy; // metres
+
+                    nextReportCoords = { lat, lng };
+                    updateFormCoordinates();
+                    flashGpsBox();
+
+                    // Reverse geocode for address
+                    writeLog(`[GPS] Fix acquired: [${lat.toFixed(6)}, ${lng.toFixed(6)}] ±${Math.round(acc)}m. Reverse geocoding...`, "success");
+                    const address = await reverseGeocode(lat, lng);
+                    setLocationUI(address, acc, 'Device GPS');
+
+                    // Place you-are-here marker + accuracy circle on admin map
+                    placeYouAreHereMarker(lat, lng, acc);
+
+                    writeLog(`[GEOCODE] Address resolved: "${address}"`, "success");
+                    resetGpsButton();
+                },
+                async (error) => {
+                    // Fallback: simulated network triangulation jitter around Bengaluru
+                    const jitterLat = 12.9716 + (Math.random() - 0.5) * 0.04;
+                    const jitterLng = 77.5946 + (Math.random() - 0.5) * 0.04;
+                    nextReportCoords = { lat: jitterLat, lng: jitterLng };
+                    updateFormCoordinates();
+                    flashGpsBox();
+
+                    writeLog(`[GPS] Access denied (${error.message}). Falling back to simulated triangulation.`, "warn");
+                    const address = await reverseGeocode(jitterLat, jitterLng);
+                    setLocationUI(address, 350, 'Network Triangulation (fallback)');
+                    placeYouAreHereMarker(jitterLat, jitterLng, 350);
+                    writeLog(`[GEOCODE] Estimated address: "${address}"`, "warn");
+                    resetGpsButton();
+                },
+                { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
+            );
+        } else {
+            const jitterLat = 12.9716 + (Math.random() - 0.5) * 0.04;
+            const jitterLng = 77.5946 + (Math.random() - 0.5) * 0.04;
+            nextReportCoords = { lat: jitterLat, lng: jitterLng };
+            updateFormCoordinates();
+            flashGpsBox();
+            reverseGeocode(jitterLat, jitterLng).then(address => {
+                setLocationUI(address, null, 'Simulated (no API)');
+                placeYouAreHereMarker(jitterLat, jitterLng, null);
+                writeLog(`[GEOCODE] Estimated address: "${address}"`, "warn");
+            });
+            writeLog("[GPS] Geolocation API not supported. Using simulated coordinates.", "warn");
+            resetGpsButton();
+        }
     });
+
+    function resetGpsButton() {
+        btnMockGps.disabled = false;
+        btnMockGps.innerHTML = `<i class="fa-solid fa-location-crosshairs"></i> GPS`;
+    }
     
     // Submit / Run AI Flow
     btnSubmitReport.addEventListener("click", () => {
@@ -491,25 +645,36 @@ function initAdminConsole() {
         addNewMarker(ticket);
     });
     
-    // Map Click coordinate grabber
-    map.on('click', (e) => {
+    // Map Click: update coords, reverse geocode, place pin, flash citizen form
+    map.on('click', async (e) => {
         const lat = e.latlng.lat;
         const lng = e.latlng.lng;
         nextReportCoords = { lat, lng };
-        
-        writeLog(`[MAP] Selected user coordinate hook from map tap: [${lat.toFixed(5)}, ${lng.toFixed(5)}]`, "tip");
-        
-        // Toast or simple header flash to show coordination
-        const hintEl = document.querySelector(".map-hint");
-        hintEl.textContent = `Coordinates set: [${lat.toFixed(4)}, ${lng.toFixed(4)}]`;
-        hintEl.style.color = "var(--primary)";
-        hintEl.style.borderColor = "var(--primary)";
-        
-        setTimeout(() => {
-            hintEl.textContent = "Click map to set custom coordinates for next citizen report";
-            hintEl.style.color = "var(--text-secondary)";
-            hintEl.style.borderColor = "var(--border-color)";
-        }, 3000);
+        updateFormCoordinates();
+        flashGpsBox();
+
+        writeLog(`[MAP] Pinned custom coordinate: [${lat.toFixed(5)}, ${lng.toFixed(5)}]`, "tip");
+
+        // Reverse geocode the clicked point
+        const address = await reverseGeocode(lat, lng);
+        setLocationUI(address, null, 'Map Pin (manual)');
+        writeLog(`[GEOCODE] Map pin address: "${address}"`, "tip");
+
+        // Place a visual pin marker for the selected location
+        placeYouAreHereMarker(lat, lng, null);
+
+        // Flash the map-hint bar briefly
+        const hintEl = document.querySelector('.map-hint');
+        if (hintEl) {
+            hintEl.textContent = `Pinned: ${address.split(',')[0]}`;
+            hintEl.style.color = 'var(--primary)';
+            hintEl.style.borderColor = 'var(--primary)';
+            setTimeout(() => {
+                hintEl.textContent = 'Click map to set custom coordinates for next citizen report';
+                hintEl.style.color = '';
+                hintEl.style.borderColor = '';
+            }, 3500);
+        }
     });
     
     // 6.2 Filter Controls Table
