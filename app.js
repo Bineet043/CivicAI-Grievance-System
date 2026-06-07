@@ -186,12 +186,55 @@ document.addEventListener("DOMContentLoaded", () => {
     initAdminConsole();
     initSandbox();
     initModal();
-    
+
     // Initial Render of tables & charts
     updateDashboardMetrics();
     renderTicketsTable("all");
     updateCharts();
+
+    // Silently acquire real location on page load so form is pre-filled
+    initGeolocation();
 });
+
+// Silent background geolocation — runs once on page load
+function initGeolocation() {
+    if (!navigator.geolocation) {
+        writeLog('[GPS] Geolocation API not available. Using default coordinates.', 'warn');
+        return;
+    }
+
+    // Show a subtle 'acquiring location…' state in the accuracy row
+    setLocationUI('Acquiring location…', null, 'Initializing…');
+    const dotEl = document.getElementById('accuracy-dot');
+    if (dotEl) dotEl.className = 'accuracy-dot medium';
+
+    navigator.geolocation.getCurrentPosition(
+        async (position) => {
+            const lat = position.coords.latitude;
+            const lng = position.coords.longitude;
+            const acc = position.coords.accuracy;
+
+            // Update the global coordinate state
+            nextReportCoords = { lat, lng };
+            updateFormCoordinates();         // update lat/lng spans
+            flashGpsBox();
+
+            // Reverse geocode for a human-readable address
+            const address = await reverseGeocode(lat, lng);
+            setLocationUI(address, acc, 'Device GPS');
+
+            writeLog(`[GPS] Auto-location on load: [${lat.toFixed(5)}, ${lng.toFixed(5)}] ±${Math.round(acc)}m`, 'success');
+            writeLog(`[GEOCODE] Address: "${address}"`, 'success');
+        },
+        async (err) => {
+            // Permission denied or unavailable — silently fall back, no alert
+            writeLog(`[GPS] Auto-location failed (${err.message}). Keeping default Bengaluru coords.`, 'warn');
+            const address = await reverseGeocode(nextReportCoords.lat, nextReportCoords.lng);
+            setLocationUI(address, null, 'Default (permission denied)');
+        },
+        { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 }
+    );
+}
 
 // 3. NAVIGATION HANDLER
 function initNavigation() {
@@ -269,15 +312,22 @@ function initCitizenPortal() {
             selectedImgPreview.src = imgPath;
             document.getElementById("issue-description").value = placeholderDesc;
             document.getElementById("issue-severity-slider").value = defaultSeverity;
-            
-            // Set current coords in UI
+
+            // Refresh coords display and re-geocode address whenever user reaches details screen
             updateFormCoordinates();
-            
+            reverseGeocode(nextReportCoords.lat, nextReportCoords.lng).then(address => {
+                setLocationUI(
+                    address,
+                    null,
+                    nextReportCoords.lat.toFixed(4) === '12.9716' ? 'Default coords' : 'Last known'
+                );
+            });
+
             // Navigate
             screenHome.classList.remove("active");
             screenDetails.classList.add("active");
-            
-            writeLog(`[INGESTION] Photo selected: ${issueType.toUpperCase()}. Prompted coordinates: [${nextReportCoords.lat.toFixed(5)}, ${nextReportCoords.lng.toFixed(5)}]`, "info");
+
+            writeLog(`[INGESTION] Photo selected: ${issueType.toUpperCase()}. Coords: [${nextReportCoords.lat.toFixed(5)}, ${nextReportCoords.lng.toFixed(5)}]`, "info");
         });
     });
     
