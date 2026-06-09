@@ -3,3 +3,8 @@ node_modules/
 .env
 .DS_Store
 *.log
+__pycache__/
+subagent_*.json
+step_*
+logs.json
+matched_tool_response.json

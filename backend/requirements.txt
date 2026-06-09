@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+python-multipart
+transformers
+torch
+pillow
+ultralytics
+google-generativeai
+python-dotenv
