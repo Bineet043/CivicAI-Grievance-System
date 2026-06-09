@@ -60,20 +60,41 @@ Where:
 ## 🚀 How to Run Locally
 
 ### Prerequisites
-Make sure you have [Node.js](https://nodejs.org/) installed.
+* [Node.js](https://nodejs.org/) installed
+* [Python 3.8+](https://www.python.org/) installed
 
-### Installation & Launch
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/Bineet043/CivicAI-Grievance-System.git
-   cd CivicAI-Grievance-System
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Start the server:
-   ```bash
-   npm run dev
-   ```
-4. Access the portal at: **`http://localhost:3000`**
+### Project Directory Structure
+The repository is split into:
+* `frontend/`: Direct static assets (`index.html`, `app.js`, `style.css`, static `assets`).
+* `backend/`: Server-side code (`server.js`), ML models (`classify_server.py`), YOLO weights (`weights/`), and configurations.
+
+---
+
+### Setup & Launch
+
+#### 1. Start Node.js Web Server (Express)
+Serves the static web page.
+```bash
+cd backend
+npm install
+npm run dev
+```
+Access the portal at: **`http://localhost:3000`**
+
+#### 2. Start ML Classification Server (FastAPI)
+Handles YOLO/CLIP image classification and Gemini validation.
+```bash
+# From root directory
+cd backend
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Create .env file with your Gemini API Key
+# GEMINI_API_KEY=your_api_key_here
+
+# Launch server
+python -m uvicorn classify_server:app --host 0.0.0.0 --port 8000
+```
+The ML backend will be listening on: **`http://localhost:8000`**
+
