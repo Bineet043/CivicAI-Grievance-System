@@ -240,7 +240,7 @@ def run_gemini(image: Image.Image) -> dict:
         )
 
         response = client.models.generate_content(
-            model="gemini-3-flash-preview",
+            model="gemini-3.1-flash-lite",
             contents=[prompt, image],
         )
 
