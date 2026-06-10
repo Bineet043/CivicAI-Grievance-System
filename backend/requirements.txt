@@ -7,5 +7,5 @@ python-multipart
 transformers
 pillow
 ultralytics
-google-generativeai
+google-genai
 python-dotenv
