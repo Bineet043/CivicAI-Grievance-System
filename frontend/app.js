@@ -224,7 +224,7 @@ let lastMlConfidence = null;
 // ML Classification backend URL (points to local or Hugging Face Space)
 const CLASSIFY_API_URL = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1"
     ? "http://localhost:8000/classify"
-    : "https://bineet043-civicai-classifier.hf.space/classify";
+    : "https://bineetog-civicai-classifier.hf.space/classify";
 
 // Map & Charts instances
 let map;

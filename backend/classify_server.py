@@ -7,6 +7,7 @@ import os
 import io
 import json
 import traceback
+from typing import Optional
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -114,7 +115,7 @@ async def load_models():
 
 # ─── Step 1: YOLO Pothole Detection ──────────────────────────────────────────
 
-def run_yolo(image: Image.Image) -> dict | None:
+def run_yolo(image: Image.Image) -> Optional[dict]:
     """Run YOLO pothole detection. Returns result dict if confident, else None."""
     if yolo_model is None:
         print("[YOLO] Model not available, skipping.")
@@ -149,7 +150,7 @@ def run_yolo(image: Image.Image) -> dict | None:
 
 # ─── Step 2: CLIP Zero-Shot Classification ───────────────────────────────────
 
-def run_clip(image: Image.Image) -> dict | None:
+def run_clip(image: Image.Image) -> Optional[dict]:
     """Run CLIP zero-shot classification. Returns result dict if confident, else None."""
     if clip_model is None or clip_processor is None:
         print("[CLIP] Model not available, skipping.")

@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: civicai-grievance-system
+    runtime: node
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node server.js
+    plan: free
+    envVars: []
