@@ -673,6 +673,8 @@ function runAIPipeline(imgSrc, desc, userSeverity) {
     const logText = document.getElementById("scanner-log");
 
     progressBar.style.width = "0%";
+    phaseTitle.textContent = "Initializing Multimodal Ingestion...";
+    logText.textContent = "Parsing image metadata & geo-tags...";
 
     writeLog("--------------------------------------------------", "system");
     writeLog("[PIPELINE] Initiating Multi-Modal AI Decision Flow...", "system");
